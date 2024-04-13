@@ -48,16 +48,18 @@ func GetRoleAssignment(name interface{}, prefix interface{}, role interface{}, e
 			name = strings.ToLower(name)
 			if subscriptionName == name {
 				match = &eligibleRoleAssignment
+        goto ROLECHECK
 			}
 		}
-
+  ROLECHECK:
 		if match != nil {
 			if role == nil {
 				return &eligibleRoleAssignment
 			}
 			if role, exists := role.(string); exists {
 				role = strings.ToLower(role)
-				if strings.Contains(strings.ToLower(eligibleRoleAssignment.Properties.ExpandedProperties.RoleDefinition.DisplayName), role) {
+        name = strings.ToLower(name.(string))
+				if strings.ToLower(eligibleRoleAssignment.Properties.ExpandedProperties.RoleDefinition.DisplayName) == role && strings.Contains(strings.ToLower(eligibleRoleAssignment.Properties.ExpandedProperties.Scope.DisplayName), strings.ToLower(name.(string))) {
 					return &eligibleRoleAssignment
 				}
 			}
