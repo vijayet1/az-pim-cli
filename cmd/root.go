@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 netr0m <netr0m@pm.me>
+Copyright © 2023 vijayet1 <netr0m@pm.me>
 */
 package cmd
 

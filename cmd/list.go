@@ -1,11 +1,11 @@
 /*
-Copyright © 2023 netr0m <netr0m@pm.me>
+Copyright © 2023 vijayet1 <netr0m@pm.me>
 */
 package cmd
 
 import (
-	"github.com/netr0m/az-pim-cli/pkg/pim"
-	"github.com/netr0m/az-pim-cli/pkg/utils"
+	"github.com/vijayet1/az-pim-cli/pkg/pim"
+	"github.com/vijayet1/az-pim-cli/pkg/utils"
 	"github.com/spf13/cobra"
 )
 

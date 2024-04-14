@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 netr0m <netr0m@pm.me>
+Copyright © 2023 vijayet1 <netr0m@pm.me>
 */
 package utils
 
@@ -8,7 +8,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/netr0m/az-pim-cli/pkg/pim"
+	"github.com/vijayet1/az-pim-cli/pkg/pim"
 )
 
 func PrintEligibleRoles(roleEligibilityScheduleInstances *pim.RoleAssignmentResponse) {
