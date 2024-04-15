@@ -1,4 +1,4 @@
-module github.com/vijayet1/az-pim-cli
+module github.com/netr0m/az-pim-cli
 
 go 1.20
 

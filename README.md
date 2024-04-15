@@ -6,13 +6,13 @@
 ## Install
 ### Install with `go install`
 ```bash
-$ go install github.com/vijayet1/az-pim-cli@latest
+$ go install github.com/netr0m/az-pim-cli@latest
 ```
 
 ### Clone and build yourself
 ```bash
 # Clone the git repo
-$ git clone https://github.com/vijayet1/az-pim-cli.git
+$ git clone https://github.com/netr0m/az-pim-cli.git
 
 # Navigate into the repo directory and build
 $ cd az-pim-cli
