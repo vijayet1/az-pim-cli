@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Actor
-        if: github.actor != 'netr0m'
+        if: github.actor != 'vijayet1'
         run: exit 1
 
       - name: Checkout source code
