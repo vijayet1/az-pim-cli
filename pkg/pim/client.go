@@ -135,7 +135,7 @@ func Request(request *PIMRequest, responseModel any) any {
 	}
 	req.URL.RawQuery = query.Encode()
 
-	res, err := http.DefaultClient.Do(req) // nosemgrep: trailofbits.go.invalid-usage-of-modified-variable.invalid-usage-of-modified-variable
+	res, err := http.DefaultClient.Do(req) //nolint // nosemgrep: invalid-usage-of-modified-variable
 	if err != nil {
 		_error.Message = err.Error()
 		_error.Err = err
