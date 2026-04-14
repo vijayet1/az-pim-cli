@@ -137,7 +137,6 @@ func Request(request *PIMRequest, responseModel any) any {
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		defer res.Body.Close()
 		_error.Message = err.Error()
 		_error.Status = res.Status
 		_error.Err = err
