@@ -1,0 +1,173 @@
+name: Sync upstream, build release, update tap
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"   # every day at 03:17 UTC
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: netr0m/az-pim-cli
+  TAP_REPO: vijayet1/homebrew-tap
+  APP_NAME: az-pim-cli
+
+jobs:
+  sync-build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TAP_REPO_PAT }}
+
+      - name: Set git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/${UPSTREAM_REPO}.git || true
+          git fetch upstream
+          git fetch origin
+
+      - name: Detect upstream default branch
+        id: upstream_branch
+        run: |
+          BRANCH=$(git remote show upstream | sed -n '/HEAD branch/s/.*: //p')
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Check if upstream changed
+        id: check
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/${{ steps.upstream_branch.outputs.branch }})
+          ORIGIN_SHA=$(git rev-parse origin/${{ steps.upstream_branch.outputs.branch }})
+          echo "upstream_sha=$UPSTREAM_SHA" >> "$GITHUB_OUTPUT"
+          echo "origin_sha=$ORIGIN_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$UPSTREAM_SHA" = "$ORIGIN_SHA" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop if no upstream changes
+        if: steps.check.outputs.changed == 'false'
+        run: |
+          echo "No upstream updates detected."
+
+      - name: Sync fork branch to upstream
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git checkout ${{ steps.upstream_branch.outputs.branch }}
+          git reset --hard upstream/${{ steps.upstream_branch.outputs.branch }}
+          git push origin ${{ steps.upstream_branch.outputs.branch }} --force
+
+      - name: Set version
+        if: steps.check.outputs.changed == 'true'
+        id: version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="0.0.0+upstream.${SHORT_SHA}"
+          TAG="autoupdate-${SHORT_SHA}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build darwin arm64 binary
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          mkdir -p dist
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/${APP_NAME}
+          tar -C dist -czf dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz ${APP_NAME}
+
+      - name: Build darwin amd64 binary
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          mkdir -p dist
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/${APP_NAME}
+          tar -C dist -czf dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz ${APP_NAME}
+
+      - name: Create or update GitHub release
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAP_REPO_PAT }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz \
+            dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz \
+            --repo "${{ github.repository }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes "Automated sync from upstream commit ${{ steps.check.outputs.upstream_sha }}" \
+          || \
+          gh release upload "${{ steps.version.outputs.tag }}" \
+            dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz \
+            dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+      - name: Calculate SHA256
+        if: steps.check.outputs.changed == 'true'
+        id: sha
+        run: |
+          ARM_SHA=$(sha256sum dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz | awk '{print $1}')
+          AMD_SHA=$(sha256sum dist/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz | awk '{print $1}')
+          echo "arm_sha=$ARM_SHA" >> "$GITHUB_OUTPUT"
+          echo "amd_sha=$AMD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap repo
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPO }}
+          path: homebrew-tap
+          token: ${{ secrets.TAP_REPO_PAT }}
+
+      - name: Update Homebrew formula
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          mkdir -p homebrew-tap/Formula
+          cat > homebrew-tap/Formula/${APP_NAME}.rb <<EOF
+          class AzPimCli < Formula
+            desc "A utility to list and activate Azure Entra ID Privileged Identity Management roles"
+            homepage "https://github.com/${{ github.repository }}"
+            version "${{ steps.version.outputs.version }}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz"
+                sha256 "${{ steps.sha.outputs.arm_sha }}"
+              end
+              if Hardware::CPU.intel?
+                url "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/${APP_NAME}-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz"
+                sha256 "${{ steps.sha.outputs.amd_sha }}"
+              end
+            end
+
+            def install
+              bin.install "${APP_NAME}"
+            end
+
+            test do
+              system "#{bin}/${APP_NAME}", "--help"
+            end
+          end
+          EOF
+
+      - name: Commit and push tap update
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/${APP_NAME}.rb
+          git commit -m "Update ${APP_NAME} to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+          git push
