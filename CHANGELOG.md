@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.0](https://github.com/vijayet1/az-pim-cli/compare/v1.6.1...v1.7.0) (2026-04-14)
+
+
+### Bug Fixes
+
+* **client:** guard res nil dereference on HTTP error path to resolve Semgrep CWE-476 warning ([645faa7](https://github.com/vijayet1/az-pim-cli/commit/645faa7bdd93947e17d5dd274506ed15b72cef9e))
+* **client:** move defer res.Body.Close() outside error branch to fix invalid-usage-of-modified-variable ([5d734cd](https://github.com/vijayet1/az-pim-cli/commit/5d734cdb65241b3ed2a0f7cfba1608cdab17d94b))
+* **client:** move nosemgrep annotation to flagged line 138 to correctly suppress Semgrep warning ([befd615](https://github.com/vijayet1/az-pim-cli/commit/befd6155bbc83f513a1dc50ecd089ce9e603a07d))
+* **client:** use short rule ID in nosemgrep annotation to correctly suppress Semgrep warning ([c845816](https://github.com/vijayet1/az-pim-cli/commit/c845816dedd8653a3e06583734f9d29381e3b859))
+* **test_data:** replace real-structured JWT with safe test fixture to resolve secret and code scanning alerts ([3c8d7d1](https://github.com/vijayet1/az-pim-cli/commit/3c8d7d1754778960bc8b6a8cf308d365bd6faf94))
+
 ## [1.6.1](https://github.com/vijayet1/az-pim-cli/compare/v1.13.0...v1.6.1) (2026-04-14)
 
 
