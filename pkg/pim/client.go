@@ -138,10 +138,12 @@ func Request(request *PIMRequest, responseModel any) any {
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		_error.Message = err.Error()
-		_error.Status = res.Status
 		_error.Err = err
 		_error.Request = req
-		_error.Response = res
+		if res != nil {
+			_error.Status = res.Status
+			_error.Response = res
+		}
 		slog.Error(_error.Error())
 		slog.Debug(_error.Debug())
 		os.Exit(1)
