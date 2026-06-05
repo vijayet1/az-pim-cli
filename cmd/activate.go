@@ -24,6 +24,7 @@ var ticketSystem string
 var ticketNumber string
 var dryRun bool
 var validateOnly bool
+var resourceScope string
 
 var activateCmd = &cobra.Command{
 	Use:     "activate",
@@ -42,12 +43,12 @@ var activateResourceCmd = &cobra.Command{
 
 		eligibleResourceAssignments := pim.GetEligibleResourceAssignments(token, AzureClientInstance)
 		resourceAssignment := utils.GetResourceAssignment(name, prefix, roleName, eligibleResourceAssignments)
-		scope, assignmentRequest := pim.CreateResourceAssignmentRequest(subjectId, resourceAssignment, duration, startDate, startTime, reason, ticketSystem, ticketNumber)
+		scope, assignmentRequest := pim.CreateResourceAssignmentRequestWithScope(subjectId, resourceAssignment, resourceScope, duration, startDate, startTime, reason, ticketSystem, ticketNumber)
 
 		slog.Info(
 			"Requesting activation",
 			"role", resourceAssignment.Properties.ExpandedProperties.RoleDefinition.DisplayName,
-			"scope", resourceAssignment.Properties.ExpandedProperties.Scope.DisplayName,
+			"scope", scope,
 			"reason", reason,
 			"ticketNumber", ticketNumber,
 			"ticketSystem", ticketSystem,
@@ -72,7 +73,7 @@ var activateResourceCmd = &cobra.Command{
 		slog.Info(
 			"Request completed",
 			"role", resourceAssignment.Properties.ExpandedProperties.RoleDefinition.DisplayName,
-			"scope", resourceAssignment.Properties.ExpandedProperties.Scope.DisplayName,
+			"scope", scope,
 			"status", requestResponse.Properties.Status,
 		)
 	},
@@ -163,4 +164,6 @@ func init() {
 
 	activateCmd.MarkFlagsOneRequired("name", "prefix")
 	activateCmd.MarkFlagsMutuallyExclusive("name", "prefix")
+
+	activateResourceCmd.Flags().StringVar(&resourceScope, "scope", "", "The scope to activate the resource role at, if different from the eligible assignment scope")
 }

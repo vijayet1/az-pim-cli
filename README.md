@@ -136,33 +136,39 @@ $ az-pim-cli activate resource
 ```bash
 # Activate the first matching role for a resource with the prefix 'S100'
 $ az-pim-cli activate resource --prefix S100
-time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Contributor scope=S100-Example-Subscription reason="" ticketNumber="" ticketSystem="" duration=480 startDateTime=""
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Contributor scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 reason="" ticketNumber="" ticketSystem="" duration=480 startDateTime=""
 time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
-time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Contributor scope=S100-Example-Subscription status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Contributor scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 status=Provisioned
 
 # Activate a specific role ('Owner') for a resource with the prefix 's100'
 $ az-pim-cli activate resource --prefix s100 --role owner
-time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=S100-Example-Subscription reason="" ticketNumber="" ticketSystem="" duration=480 startDateTime=""
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 reason="" ticketNumber="" ticketSystem="" duration=480 startDateTime=""
 time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
-time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=S100-Example-Subscription status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 status=Provisioned
+
+# Activate a specific role ('Owner') for a resource with a narrower scope
+$ az-pim-cli activate resource --name S100-Example-Subscription --scope /subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83/resourceGroups/example-rg --role Owner
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83/resourceGroups/example-rg reason="" ticketNumber="" ticketSystem="" duration=480 startDateTime=""
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83/resourceGroups/example-rg status=Provisioned
 
 # Activate a resource role and specify a ticket number for the activation
 $ az-pim-cli activate resource --name S100-Example-Subscription --role Owner --ticket-system Jira --ticket-number T-1337
-time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=S100-Example-Subscription reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=""
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=""
 time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
-time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=S100-Example-Subscription status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 status=Provisioned
 
 # Activate a resource role and specify the start time for the activation. Uses the local timezone.
 $ az-pim-cli activate resource --name S100-Example-Subscription --role Owner --start-time 14:30
-time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=S100-Example-Subscription reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=2024-11-20T14:30:00+01:00
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=2024-11-20T14:30:00+01:00
 time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
-time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=S100-Example-Subscription status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 status=Provisioned
 
 # Activate a resource role and specify the start time and start date for the activation. Uses the local timezone.
 $ az-pim-cli activate resource --name S100-Example-Subscription --role Owner --start-date 31/12/2024 --start-time 09:30
-time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=S100-Example-Subscription reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=2024-12-31T09:30:00+01:00
+time=2024-11-20T08:08:08.534+01:00 level=INFO msg="Requesting activation" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 reason="" ticketNumber=T-1337 ticketSystem=Jira duration=480 startDateTime=2024-12-31T09:30:00+01:00
 time=2024-11-20T08:08:20.129+01:00 level=INFO msg="The role assignment request was successful" status=Provisioned
-time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=S100-Example-Subscription status=Provisioned
+time=2024-11-20T08:08:20.129+01:00 level=INFO msg="Request completed" role=Owner scope=/subscriptions/6d80fbe7-7508-46e8-9fbf-a9d2e0dfec83 status=Provisioned
 ```
 
 </details>

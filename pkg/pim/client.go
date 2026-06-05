@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -246,6 +247,17 @@ func GetEligibleGovernanceRoleAssignments(roleType string, subjectId string, tok
 }
 
 func (c AzureClient) ValidateResourceAssignmentRequest(scope string, resourceAssignmentRequest *ResourceAssignmentRequestRequest, token string) bool {
+	u, err := url.JoinPath(c.ARMBaseURL, scope, ARM_BASE_PATH, "roleAssignmentScheduleRequests", uuid.NewString(), "validate")
+	if err != nil {
+		_error := common.Error{
+			Operation: "ValidateResourceAssignmentRequest",
+			Message:   err.Error(),
+			Err:       err,
+		}
+		slog.Error(_error.Error())
+		os.Exit(1)
+	}
+
 	params := map[string]string{
 		"api-version": AZ_PIM_API_VERSION,
 	}
@@ -255,13 +267,7 @@ func (c AzureClient) ValidateResourceAssignmentRequest(scope string, resourceAss
 
 	validationResponse := &ResourceAssignmentRequestResponse{}
 	_ = Request(&PIMRequest{
-		Url: fmt.Sprintf(
-			"%s/%s/%s/roleAssignmentScheduleRequests/%s/validate",
-			c.ARMBaseURL,
-			scope,
-			ARM_BASE_PATH,
-			uuid.NewString(),
-		),
+		Url:     u,
 		Token:   token,
 		Method:  "POST",
 		Params:  params,
@@ -299,19 +305,24 @@ func ValidateGovernanceRoleAssignmentRequest(roleType string, roleAssignmentRequ
 }
 
 func (c AzureClient) RequestResourceAssignment(scope string, resourceAssignmentRequest *ResourceAssignmentRequestRequest, token string) *ResourceAssignmentRequestResponse {
+	u, err := url.JoinPath(c.ARMBaseURL, scope, ARM_BASE_PATH, "roleAssignmentScheduleRequests", uuid.NewString())
+	if err != nil {
+		_error := common.Error{
+			Operation: "RequestResourceAssignment",
+			Message:   err.Error(),
+			Err:       err,
+		}
+		slog.Error(_error.Error())
+		os.Exit(1)
+	}
+
 	params := map[string]string{
 		"api-version": AZ_PIM_API_VERSION,
 	}
 
 	responseModel := &ResourceAssignmentRequestResponse{}
 	_ = Request(&PIMRequest{
-		Url: fmt.Sprintf(
-			"%s/%s/%s/roleAssignmentScheduleRequests/%s",
-			c.ARMBaseURL,
-			scope,
-			ARM_BASE_PATH,
-			uuid.NewString(),
-		),
+		Url:     u,
 		Token:   token,
 		Method:  "PUT",
 		Params:  params,

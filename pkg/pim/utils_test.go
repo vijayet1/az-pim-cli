@@ -25,3 +25,31 @@ func TestParseDateTime(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%sT13:37:00%s", currentDate, currentTZ), timeOnly, errMsg)
 	assert.Equal(t, fmt.Sprintf("2024-12-31T13:37:00%s", currentTZ), dateTime, errMsg)
 }
+
+func TestCreateResourceAssignmentRequest(t *testing.T) {
+	resourceAssignment := &EligibleResourceAssignmentsDummyData.Value[0]
+	tests := []struct {
+		name     string
+		scope    string
+		expected string
+	}{
+		{
+			name:     "without resource scope",
+			scope:    "",
+			expected: resourceAssignment.Properties.ExpandedProperties.Scope.Id,
+		},
+		{
+			name:     "with resource scope",
+			scope:    fmt.Sprintf("/subscriptions/%s/resourceGroups/rg", TEST_DUMMY_SUBSCRIPTION_1_ID),
+			expected: fmt.Sprintf("/subscriptions/%s/resourceGroups/rg", TEST_DUMMY_SUBSCRIPTION_1_ID),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope, _ := CreateResourceAssignmentRequestWithScope(TEST_DUMMY_PRINCIPAL_ID, resourceAssignment, tt.scope, 30, "", "", "test", "Test", "1337")
+
+			assert.Equal(t, tt.expected, scope)
+		})
+	}
+}

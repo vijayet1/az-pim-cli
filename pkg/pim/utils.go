@@ -189,6 +189,10 @@ func CreateResourceAssignmentScheduleInfo(duration int, startDate string, startT
 }
 
 func CreateResourceAssignmentRequest(subjectId string, resourceAssignment *ResourceAssignment, duration int, startDate string, startTime string, reason string, ticketSystem string, ticketNumber string) (string, *ResourceAssignmentRequestRequest) {
+	return CreateResourceAssignmentRequestWithScope(subjectId, resourceAssignment, "", duration, startDate, startTime, reason, ticketSystem, ticketNumber)
+}
+
+func CreateResourceAssignmentRequestWithScope(subjectId string, resourceAssignment *ResourceAssignment, scope string, duration int, startDate string, startTime string, reason string, ticketSystem string, ticketNumber string) (string, *ResourceAssignmentRequestRequest) {
 	scheduleInfo := CreateResourceAssignmentScheduleInfo(duration, startDate, startTime)
 	resourceAssignmentRequest := &ResourceAssignmentRequestRequest{
 		Properties: ResourceAssignmentRequestProperties{
@@ -203,7 +207,9 @@ func CreateResourceAssignmentRequest(subjectId string, resourceAssignment *Resou
 			IsActivativation:                true,
 		},
 	}
-	scope := resourceAssignment.Properties.ExpandedProperties.Scope.Id[1:]
+	if scope == "" {
+		scope = resourceAssignment.Properties.ExpandedProperties.Scope.Id
+	}
 
 	return scope, resourceAssignmentRequest
 }
