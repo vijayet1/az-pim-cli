@@ -13,7 +13,6 @@ var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"l", "ls"},
 	Short:   "Query Azure PIM for eligible role assignments",
-	Run:     func(cmd *cobra.Command, args []string) {},
 }
 
 var listResourceCmd = &cobra.Command{
