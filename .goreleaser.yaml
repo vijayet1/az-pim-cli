@@ -82,7 +82,7 @@ changelog:
 
 release:
   github:
-    owner: netr0m
+    owner: vijayet1
     name: az-pim-cli
 
 source:
