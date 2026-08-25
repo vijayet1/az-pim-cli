@@ -1,0 +1,97 @@
+name: Sync Upstream & Auto Release
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Run daily at 03:00 UTC
+  workflow_dispatch:      # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-release:
+    name: Sync Upstream & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch from upstream
+        id: fetch-upstream
+        run: |
+          git remote add upstream https://github.com/netr0m/az-pim-cli.git || git remote set-url upstream https://github.com/netr0m/az-pim-cli.git
+          git fetch upstream main --tags --prune
+
+          BEHIND_COUNT=$(git rev-list --count HEAD..upstream/main)
+          echo "behind_count=${BEHIND_COUNT}" >> $GITHUB_OUTPUT
+          echo "Behind upstream by ${BEHIND_COUNT} commits."
+
+          # Identify the highest semver tag in upstream
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n1)
+          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "Latest upstream tag: ${LATEST_TAG}"
+
+      - name: Merge upstream changes
+        if: steps.fetch-upstream.outputs.behind_count > 0
+        run: |
+          echo "Merging upstream/main into main..."
+          git merge upstream/main -m "chore(sync): merge upstream/main (${{ steps.fetch-upstream.outputs.latest_tag }}) into main"
+          
+          echo "Running tests to verify merge..."
+          go test ./...
+          
+          echo "Pushing updated main to origin..."
+          git push origin main
+
+      - name: Check if release exists on fork
+        id: check-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG="${{ steps.fetch-upstream.outputs.latest_tag }}"
+          if gh release view "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "Release ${LATEST_TAG} already exists on fork."
+            echo "needs_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "Release ${LATEST_TAG} does NOT exist on fork."
+            echo "needs_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Tag merge commit
+        if: steps.check-release.outputs.needs_release == 'true'
+        run: |
+          LATEST_TAG="${{ steps.fetch-upstream.outputs.latest_tag }}"
+          echo "Tagging HEAD with ${LATEST_TAG}..."
+          git tag -a "${LATEST_TAG}" -m "Release ${LATEST_TAG}" -f
+          git push origin "${LATEST_TAG}" -f
+
+      - name: Run GoReleaser
+        if: steps.check-release.outputs.needs_release == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean --timeout=30m
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}

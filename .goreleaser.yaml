@@ -82,7 +82,7 @@ changelog:
 
 release:
   github:
-    owner: vijayet1
+    owner: '{{ .Env.GITHUB_REPOSITORY_OWNER }}'
     name: az-pim-cli
 
 source:

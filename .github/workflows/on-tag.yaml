@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Actor
-        if: github.actor != 'vijayet1'
+        if: github.actor != github.repository_owner && github.actor != 'github-actions[bot]'
         run: exit 1
 
       - name: Checkout source code
