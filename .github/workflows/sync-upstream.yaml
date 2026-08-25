@@ -41,7 +41,7 @@ jobs:
         id: fetch-upstream
         run: |
           git remote add upstream https://github.com/netr0m/az-pim-cli.git || git remote set-url upstream https://github.com/netr0m/az-pim-cli.git
-          git fetch upstream main --tags --prune
+          git fetch upstream main --tags --force --prune
 
           BEHIND_COUNT=$(git rev-list --count HEAD..upstream/main)
           echo "behind_count=${BEHIND_COUNT}" >> $GITHUB_OUTPUT
