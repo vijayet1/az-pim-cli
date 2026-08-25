@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0](https://github.com/vijayet1/az-pim-cli/compare/v1.16.0...v1.17.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* **ci:** use --force when fetching upstream tags in sync workflow ([5f8e4b7](https://github.com/vijayet1/az-pim-cli/commit/5f8e4b72a2d774e24abe92e0908cc6c0485c7220))
+
+
+### Continuous Integration
+
+* automate upstream sync and configure dynamic fork release ([9fb1cd2](https://github.com/vijayet1/az-pim-cli/commit/9fb1cd284629ac8f488a7f5ac1ac1a5668b406af))
+
 ## [1.16.0](https://github.com/netr0m/az-pim-cli/compare/v1.15.0...v1.16.0) (2026-08-04)
 
 
