@@ -30,22 +30,62 @@ type githubRelease struct {
 	Assets     []releaseAsset `json:"assets"`
 }
 
-func (c commands) release(tag string) (*githubRelease, error) {
-	b, e := c.api("repos/" + Fork + "/releases/tags/" + tag)
-	if is404(e) {
-		return nil, nil
-	}
-	if e != nil {
-		return nil, e
-	}
-	var rel githubRelease
-	if e = json.Unmarshal(b, &rel); e != nil {
-		return nil, e
-	}
+func validateReleaseResponse(rel githubRelease, tag string) error {
 	if rel.ID <= 0 || rel.Tag != tag || rel.Draft == nil || rel.Prerelease == nil || *rel.Prerelease {
-		return nil, fmt.Errorf("invalid stable fork release response")
+		return fmt.Errorf("invalid stable fork release response")
 	}
-	return &rel, nil
+	return nil
+}
+
+func (c commands) release(tag string) (*githubRelease, error) {
+	// GitHub's tag endpoint only retrieves published releases. Drafts must
+	// be discovered through the releases list with a token that can view them.
+	b, err := c.api("repos/" + Fork + "/releases/tags/" + tag)
+	if err == nil {
+		var rel githubRelease
+		if err = json.Unmarshal(b, &rel); err != nil {
+			return nil, err
+		}
+		if err = validateReleaseResponse(rel, tag); err != nil {
+			return nil, err
+		}
+		return &rel, nil
+	}
+	if !is404(err) {
+		return nil, err
+	}
+
+	var found *githubRelease
+	for page := 1; page <= 1000; page++ {
+		b, err = c.api("repos/" + Fork + "/releases?per_page=100&page=" + strconv.Itoa(page))
+		if err != nil {
+			return nil, err
+		}
+		var releases []githubRelease
+		if err = json.Unmarshal(b, &releases); err != nil {
+			return nil, err
+		}
+		if releases == nil {
+			return nil, fmt.Errorf("invalid release-list response")
+		}
+		for _, rel := range releases {
+			if rel.Tag != tag {
+				continue
+			}
+			if found != nil {
+				return nil, fmt.Errorf("multiple releases found for tag %s; operator inspection required", tag)
+			}
+			if err = validateReleaseResponse(rel, tag); err != nil {
+				return nil, err
+			}
+			match := rel
+			found = &match
+		}
+		if len(releases) < 100 {
+			return found, nil
+		}
+	}
+	return nil, fmt.Errorf("release lookup pagination limit exceeded")
 }
 func (c commands) remoteTags() (map[string]string, error) {
 	raw, e := c.git("ls-remote", "--tags", "https://github.com/"+Fork+".git")
@@ -321,8 +361,14 @@ func VerifyRelease(ctx context.Context, r Runner, dir string, o ReleaseOptions, 
 	}
 	c := commands{ctx, r, dir}
 	rel, e := c.release(o.Tag)
-	if e != nil || rel == nil || !*rel.Draft {
-		return fmt.Errorf("expected existing draft before asset verification: %v", e)
+	if e != nil {
+		return fmt.Errorf("lookup draft release %s: %w", o.Tag, e)
+	}
+	if rel == nil {
+		return fmt.Errorf("draft release %s not found; build and upload the draft before verification", o.Tag)
+	}
+	if !*rel.Draft {
+		return fmt.Errorf("release %s is no longer a draft; refusing draft writes", o.Tag)
 	}
 	m, e := BuildReleaseManifest(artifacts, o.Tag, o.Commit, result.Pin)
 	if e != nil {

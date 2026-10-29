@@ -128,14 +128,11 @@ func (f *publishFixture) Run(ctx context.Context, dir string, env []string, name
 			if f.apiStatus != 0 {
 				return nil, &CommandError{HTTPStatus: f.apiStatus}
 			}
-			if !f.existing {
+			// GitHub's tag endpoint returns published releases, not drafts.
+			if !f.existing || !f.published {
 				return nil, &CommandError{HTTPStatus: 404}
 			}
-			assets := []map[string]any{}
-			for i, name := range f.assetNames() {
-				assets = append(assets, map[string]any{"name": name, "id": i + 1, "size": len(f.assetBytes[name])})
-			}
-			return json.Marshal(map[string]any{"id": 42, "tag_name": f.tag, "draft": !f.published, "prerelease": false, "assets": assets})
+			return json.Marshal(f.releaseResponse())
 		}
 		if strings.Contains(joined, "/releases/assets/") {
 			for _, arg := range args {
@@ -149,10 +146,21 @@ func (f *publishFixture) Run(ctx context.Context, dir string, env []string, name
 			}
 		}
 		if strings.Contains(joined, "/releases?") {
-			return []byte(`[{"tag_name":"v1.16.0","draft":false,"prerelease":false}]`), nil
+			releases := []map[string]any{{"id": 41, "tag_name": "v1.16.0", "draft": false, "prerelease": false, "assets": []any{}}}
+			if f.existing {
+				releases = append(releases, f.releaseResponse())
+			}
+			return json.Marshal(releases)
 		}
 	}
 	return f.syncFixture.Run(ctx, dir, env, name, args...)
+}
+func (f *publishFixture) releaseResponse() map[string]any {
+	assets := []map[string]any{}
+	for i, name := range f.assetNames() {
+		assets = append(assets, map[string]any{"name": name, "id": i + 1, "size": len(f.assetBytes[name])})
+	}
+	return map[string]any{"id": 42, "tag_name": f.tag, "draft": !f.published, "prerelease": false, "assets": assets}
 }
 func (f *publishFixture) check() (ReleaseResult, error) {
 	return CheckRelease(context.Background(), f, f.checkout, ReleaseOptions{Repository: Fork, Tag: f.tag, Commit: f.selected, Ref: "refs/heads/main"})
