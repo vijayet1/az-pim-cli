@@ -16,7 +16,8 @@ jobs:
     uses: ./.github/workflows/snyk.yaml
     with:
       severity-treshold: low
-    secrets: inherit
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     permissions:
       contents: read
       security-events: write
@@ -24,7 +25,8 @@ jobs:
   semgrep:
     name: Scan source code
     uses: ./.github/workflows/semgrep.yaml
-    secrets: inherit
+    secrets:
+      SEMGREP_TOKEN: ${{ secrets.SEMGREP_TOKEN }}
     permissions:
       contents: read
       security-events: write

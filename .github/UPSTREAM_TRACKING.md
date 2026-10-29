@@ -66,6 +66,8 @@ gh pr checks <pr-number> -R vijayet1/az-pim-cli
 gh pr diff <pr-number> -R vijayet1/az-pim-cli
 ```
 
+Merge upstream integration PRs using **Create a merge commit**, not squash or rebase. The publisher and sync validator require the pinned upstream commit to remain an ancestor of fork main.
+
 Do not merge an older proposal after adopting a newer upstream release. Candidate validation rejects recorded-source downgrades; require current checks against the latest base.
 
 A conflict stops before branch push. Resolve it in a separate reviewed integration PR, preserving fork changes and recording the exact upstream pin. Automation also stops on unexpectedly modified candidate branches rather than overwriting human work. Merge or inspect such work manually.
@@ -121,16 +123,16 @@ The tag-triggered publisher and release-please caller have been removed to keep 
 
 ## Local verification
 
-Use Go from go.mod, Git, gh, golangci-lint 2.11.4 (the pre-commit pin), actionlint 1.7.12, and GoReleaser OSS 2.19.0. New/changed Actions are pinned to resolved commit SHAs with version comments.
+Use Go 1.27.3 from go.mod, Git, gh, golangci-lint 2.15.0 (the pre-commit pin), actionlint 1.7.12, and GoReleaser OSS 2.19.0. New/changed Actions are pinned to resolved commit SHAs with version comments.
 
-The linter must be built with a Go version at least as new as the toolchain being analyzed. The downloaded golangci-lint 2.11.4 binary was built with Go 1.26 and cannot analyze Go 1.27 standard-library files. For the current Go 1.25 module, select that toolchain when running the downloaded linter; after upgrading the module/toolchain, rebuild the pinned linter with the newer Go version. The pre-commit Go hook builds its own tool environment.
+The linter must support the Go toolchain being analyzed. Use the pinned pre-commit Go hook or a compatible build of golangci-lint 2.15.0; do not reuse an older linter binary built for Go 1.26 against this Go 1.27 module.
 
 ```bash
 go test ./internal/automation ./tools/fork-automation -count=1
 go test ./...
 go vet ./internal/automation ./tools/fork-automation
 golangci-lint run
-SKIP=golangci-lint,golangci-lint-full pre-commit run --all-files
+pre-commit run --all-files
 actionlint .github/workflows/sync-upstream.yaml .github/workflows/automation-checks.yaml .github/workflows/on-push-main.yaml .github/workflows/on-tag.yaml
 goreleaser check --config .goreleaser.fork.yaml
 git diff --check
