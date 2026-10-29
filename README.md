@@ -14,6 +14,14 @@ Authentication differs by resource type:
 
 ### Install a fork release
 
+On macOS, use the fork's Homebrew tap:
+
+```bash
+brew install vijayet1/tap/az-pim-cli
+```
+
+Run `brew update` and `brew upgrade vijayet1/tap/az-pim-cli` to upgrade after a formula update. Publishing a GitHub release alone does not update Homebrew; the optional protected tap updater is described in the operator guide below.
+
 Download the binary or archive for your platform from [this fork's releases](https://github.com/vijayet1/az-pim-cli/releases) and verify its checksum before use. Fork releases use independent stable versions; their release notes record the upstream version and commit separately.
 
 This fork tracks published stable upstream releases through reviewed PRs. Publishing requires a separate manual approval. See [upstream tracking and fork releases](.github/UPSTREAM_TRACKING.md) for setup, verification, and recovery.
