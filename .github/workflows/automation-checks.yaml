@@ -1,0 +1,41 @@
+name: Fork automation checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-automation-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Test automation
+        run: |
+          go test ./internal/automation ./tools/fork-automation -count=1
+          go vet ./internal/automation ./tools/fork-automation
+      - name: Validate recorded upstream source
+        run: |
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          go run ./tools/fork-automation validate-pin
+      - name: Install pinned workflow linter
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Lint fork workflows
+        run: |
+          actionlint .github/workflows/sync-upstream.yaml .github/workflows/automation-checks.yaml .github/workflows/on-push-main.yaml .github/workflows/on-tag.yaml

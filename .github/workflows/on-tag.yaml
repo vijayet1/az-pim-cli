@@ -1,43 +1,152 @@
-name: Release a tag
+name: Publish reviewed fork release
+
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Independent stable fork tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+      commit:
+        description: Full reviewed fork main commit SHA
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: fork-release
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Create a release with goreleaser
+  preflight:
+    if: github.repository == 'vijayet1/az-pim-cli' && github.ref == 'refs/heads/main' && vars.FORK_RELEASE_ENABLED == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      state: ${{ steps.inspect.outputs.state }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_COMMIT: ${{ inputs.commit }}
     steps:
-      - name: Check Actor
-        if: github.actor != github.repository_owner && github.actor != 'github-actions[bot]'
-        run: exit 1
-
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
-
-      - name: Setup go
-        uses: actions/setup-go@v5
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          check-latest: true
-
-      - name: Cache go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            go-${{ runner.os }}-
-
-      - name: Run goreleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: latest
-          args: release --clean --timeout=30m
+      - name: Build trusted tool and prepare reviewed source
+        run: |
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'Full lowercase commit SHA required'; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Stable fork tag required'; exit 1; }
+          go build -o "$RUNNER_TEMP/fork-automation" ./tools/fork-automation
+          git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main
+          git worktree add --detach "$RUNNER_TEMP/release-source" "$RELEASE_COMMIT"
+      - name: Inspect immutable release state
+        id: inspect
+        working-directory: ${{ runner.temp }}/release-source
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RUNNER_TEMP/fork-automation" release-check --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" > "$RUNNER_TEMP/release-state.json"
+          echo "state=$(jq -r .state "$RUNNER_TEMP/release-state.json")" >> "$GITHUB_OUTPUT"
+          jq -r '"Release: \(.tag)\nCommit: \(.commit)\nUpstream: \(.pin.tag)\nState: \(.state)"' "$RUNNER_TEMP/release-state.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Test exact reviewed commit
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        run: go test ./...
+      - name: Install pinned GoReleaser OSS
+        if: steps.inspect.outputs.state != 'already-published'
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          install-only: true
+      - name: Validate release build without publishing
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        run: |
+          goreleaser check --config .goreleaser.fork.yaml
+          goreleaser release --config .goreleaser.fork.yaml --snapshot --skip=publish --clean
+
+  publish:
+    needs: preflight
+    if: needs.preflight.outputs.state != 'already-published'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: fork-release
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_COMMIT: ${{ inputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Rebuild trusted tool and prepare selected commit
+        run: |
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          go build -o "$RUNNER_TEMP/fork-automation" ./tools/fork-automation
+          git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main
+          git worktree add --detach "$RUNNER_TEMP/release-source" "$RELEASE_COMMIT"
+      - name: Recheck after approval
+        id: inspect
+        working-directory: ${{ runner.temp }}/release-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RUNNER_TEMP/fork-automation" release-check --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" > "$RUNNER_TEMP/release-state.json"
+          echo "state=$(jq -r .state "$RUNNER_TEMP/release-state.json")" >> "$GITHUB_OUTPUT"
+          jq -r '"# Fork release \(.tag)\n\nFork commit: `\(.commit)`\n\nUpstream: [\(.pin.tag)](\(.pin.release_url))\n\nUpstream commit: `\(.pin.commit)`"' "$RUNNER_TEMP/release-state.json" > "$RUNNER_TEMP/release-notes.md"
+      - name: Create immutable tag after checking environment protection
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          "$RUNNER_TEMP/fork-automation" release-tag --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
+          git fetch --no-tags https://github.com/vijayet1/az-pim-cli.git "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+      - name: Install pinned GoReleaser OSS
+        if: steps.inspect.outputs.state != 'already-published'
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          install-only: true
+      - name: Build and upload draft
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GORELEASER_CURRENT_TAG: ${{ inputs.tag }}
+        run: |
+          goreleaser check --config .goreleaser.fork.yaml
+          goreleaser release --config .goreleaser.fork.yaml --clean --timeout=30m --release-notes "$RUNNER_TEMP/release-notes.md"
+      - name: Verify draft and persist release manifest
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RUNNER_TEMP/fork-automation" release-verify --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --artifacts dist/artifacts.json
+      - name: Publish stable release and verify latest
+        if: steps.inspect.outputs.state != 'already-published'
+        working-directory: ${{ runner.temp }}/release-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RUNNER_TEMP/fork-automation" release-check --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
+          gh release edit "$RELEASE_TAG" --repo vijayet1/az-pim-cli --draft=false --prerelease=false --latest
+          "$RUNNER_TEMP/fork-automation" release-check --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
+          test "$(gh api repos/vijayet1/az-pim-cli/releases/latest --jq .tag_name)" = "$RELEASE_TAG"
+          echo "Published stable fork release $RELEASE_TAG at $RELEASE_COMMIT" >> "$GITHUB_STEP_SUMMARY"

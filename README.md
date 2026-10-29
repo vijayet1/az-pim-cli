@@ -11,12 +11,21 @@ Authentication differs by resource type:
 - **Entra roles and groups** authenticate with a Microsoft Entra app registration (device code sign-in) - see [Prerequisites](#prerequisites). You'll need to provide your own Entra app registration to use with this tool. See [Azure/azure-cli#22775](https://github.com/Azure/azure-cli/issues/22775) for background.
 
 ## Install
-### Install with `go install`
+
+### Install a fork release
+
+Download the binary or archive for your platform from [this fork's releases](https://github.com/vijayet1/az-pim-cli/releases) and verify its checksum before use. Fork releases use independent stable versions; their release notes record the upstream version and commit separately.
+
+This fork tracks published stable upstream releases through reviewed PRs. Publishing requires a separate manual approval. See [upstream tracking and fork releases](.github/UPSTREAM_TRACKING.md) for setup, verification, and recovery.
+
+The Go module still targets upstream. The following `go install` command installs upstream, not this fork's release.
+
+### Install upstream with `go install`
 ```bash
 $ go install github.com/netr0m/az-pim-cli@latest
 ```
 
-### Clone and build yourself
+### Clone and build upstream yourself
 ```bash
 # Clone the git repo
 $ git clone https://github.com/netr0m/az-pim-cli.git
