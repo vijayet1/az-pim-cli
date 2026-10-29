@@ -78,7 +78,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 			return fail(fmt.Errorf("GH_TOKEN is required for release operations"))
 		}
 		if args[0] == "homebrew-update" && strings.TrimSpace(os.Getenv("HOMEBREW_TAP_TOKEN")) == "" {
-			return fail(fmt.Errorf("environment secret HOMEBREW_TAP_TOKEN is required"))
+			return fail(fmt.Errorf("missing Homebrew credential in HOMEBREW_TAP_TOKEN"))
 		}
 		o := automation.ReleaseOptions{Repository: *repo, Tag: *tag, Commit: *commit, Ref: os.Getenv("GITHUB_REF")}
 		if args[0] == "release-check" {

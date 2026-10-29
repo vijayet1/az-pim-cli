@@ -32,7 +32,7 @@ These actions require repository administration and explicit approval. The imple
 3. Create environment `upstream-sync`, restricted to branch `main`. Set environment variable `UPSTREAM_SYNC_APP_ID` and environment secret `UPSTREAM_SYNC_APP_PRIVATE_KEY`. Do not store the private key as a repository-wide secret.
 4. Create environment `fork-release` with at least one required reviewer, admin bypass disabled, and a custom deployment branch policy containing only branch `main` (not a tag rule). The publisher checks these rules through read-only environment APIs and refuses writes if they are missing, unavailable, or inconsistent. Its token needs contents: write and actions: read; no App key is used for publishing.
 5. Review branch protection/rulesets for main. Require PR review and the application/automation checks, including validation against an up-to-date base. Configure stale-review dismissal and strict up-to-date checks as appropriate; do not assume administrators cannot bypass rules by default.
-6. Audit existing repository-wide secrets and all workflows that consume them. Remove the obsolete release-please token only after confirming it has no other consumer. Do not reuse TAP_REPO_PAT or another existing token without checking its purpose and scope.
+6. Audit existing repository-wide secrets and all workflows that consume them. Remove the obsolete release-please token only after confirming it has no other consumer. The optional Homebrew step uses the existing TAP_REPO_PAT by operator choice; this does not change or verify its permissions.
 7. Test the complete flow in a disposable repository with separate App installation and environment settings. Adjust the explicit repository identities/config in that test copy and verify every write targets the disposable repository. Do not create test releases in the production fork.
 8. Once setup and rehearsal pass, set repository variable `UPSTREAM_SYNC_ENABLED=true`. Set repository variable `FORK_RELEASE_ENABLED=true` only when publication is ready. These are repository variables because job-level enable checks run before environment variables are available.
 
@@ -126,22 +126,19 @@ The tag-triggered publisher and release-please caller have been removed to keep 
 
 The optional post-publication step updates `Formula/az-pim-cli.rb` on `vijayet1/homebrew-tap` main. It changes only the stable version, two macOS archive URLs, and their SHA-256 values, preserving the existing install/test code. It refuses draft releases, incomplete published manifests, unknown formula layouts, downgrades, and changed checksums at the same version. Concurrent content changes use a bounded reread/retry with the GitHub contents API SHA; no force push or branch-rule bypass is used.
 
-### One-time credential setup
+### Use the existing PAT
 
-1. Create an expiring fine-grained PAT restricted to **only `vijayet1/homebrew-tap`**, with repository **Contents: read and write**. No Workflows, Administration, or Pull requests permission is needed for the single-file contents update.
-2. Add it as environment secret **`HOMEBREW_TAP_TOKEN`** in this repository's protected **`fork-release`** environment, not as a repository-wide secret. For an interactive terminal upload that does not put the value in command arguments/history:
+The publisher uses the existing repository secret **`TAP_REPO_PAT`**, as authorized by the operator. No second secret or new PAT is required. In this workflow, its value is mapped to the internal **`HOMEBREW_TAP_TOKEN`** environment variable only in the protected Homebrew steps; that variable is not an additional GitHub secret to configure.
 
-   ```bash
-   gh secret set HOMEBREW_TAP_TOKEN --repo vijayet1/az-pim-cli --env fork-release
-   ```
+The PAT must be valid and have Contents write access to `vijayet1/homebrew-tap`. Its stored value and actual grants cannot be inspected through the secrets API; a live tap write will determine whether its existing permissions are sufficient. This change does not add permissions, broaden the sync App installation, or expand the source repository's GITHUB_TOKEN. Source Git/CLI child processes do not inherit the internal tap variable; only fixed-target tap API calls receive the credential as their explicit GH_TOKEN.
 
-3. After the workflow change is merged and the secret is configured, enable the **repository** variable:
+After the workflow change is merged, enable the **repository** variable:
 
-   ```bash
-   gh variable set HOMEBREW_TAP_ENABLED --repo vijayet1/az-pim-cli --body true
-   ```
+```bash
+gh variable set HOMEBREW_TAP_ENABLED --repo vijayet1/az-pim-cli --body true
+```
 
-The existing repository-wide `TAP_REPO_PAT` is not used or copied automatically: its scope has not been verified. This integration does not broaden the sync App installation or the source repository's GITHUB_TOKEN. The dedicated tap credential is passed only to fixed-path tap API calls, never in arguments or logs.
+The existing PAT is not copied into another secret, printed, or placed in command arguments. If it later needs rotation, replace `TAP_REPO_PAT` through normal secret management rather than bypassing the approval gate.
 
 The protected publisher checks that the optional secret is present before release writes. A permission failure during the later tap update can still leave a successfully published release with an outdated formula; do not delete or republish that release to repair Homebrew. Fix the credential/configuration and dispatch the same tag and original source SHA again. With `HOMEBREW_TAP_ENABLED=true`, the already-published path skips all tag/build/release writes but still requires environment approval before checking/updating the tap. An already-current formula is a no-op. A formula newer than the requested release is refused rather than downgraded. If tap branch protection later requires PRs, adjust the integration through review; do not grant bypass solely to make the direct update succeed.
 
