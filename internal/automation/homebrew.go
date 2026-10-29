@@ -138,7 +138,7 @@ func UpdateHomebrewTap(ctx context.Context, r Runner, dir string, o ReleaseOptio
 	result := HomebrewResult{Tag: o.Tag}
 	token := strings.TrimSpace(os.Getenv("HOMEBREW_TAP_TOKEN"))
 	if token == "" {
-		return result, fmt.Errorf("environment secret HOMEBREW_TAP_TOKEN is required")
+		return result, fmt.Errorf("missing Homebrew credential in HOMEBREW_TAP_TOKEN")
 	}
 	plan, err := PlanHomebrew(ctx, r, dir, o)
 	if err != nil {

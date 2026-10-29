@@ -101,9 +101,9 @@ jobs:
       - name: Check optional Homebrew credential before release writes
         if: vars.HOMEBREW_TAP_ENABLED == 'true'
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.TAP_REPO_PAT }}
         run: |
-          test -n "$HOMEBREW_TAP_TOKEN" || { echo 'Missing environment secret HOMEBREW_TAP_TOKEN'; exit 1; }
+          test -n "$HOMEBREW_TAP_TOKEN" || { echo 'Missing repository secret TAP_REPO_PAT'; exit 1; }
       - name: Recheck after approval
         id: inspect
         working-directory: ${{ runner.temp }}/release-source
@@ -161,7 +161,7 @@ jobs:
         working-directory: ${{ runner.temp }}/release-source
         env:
           GH_TOKEN: ${{ github.token }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.TAP_REPO_PAT }}
         run: |
           "$RUNNER_TEMP/fork-automation" homebrew-update --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" > "$RUNNER_TEMP/homebrew-update.json"
           jq -r '"Homebrew: \(.state)\nTap commit: \(.tap_commit // "unchanged")"' "$RUNNER_TEMP/homebrew-update.json" >> "$GITHUB_STEP_SUMMARY"
