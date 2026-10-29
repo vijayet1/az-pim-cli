@@ -19,7 +19,7 @@ func main() {
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 func run(ctx context.Context, args []string, out, errOut io.Writer) int {
-	fail := func(e error) int { fmt.Fprintln(errOut, e); return 1 }
+	fail := func(e error) int { _, _ = fmt.Fprintln(errOut, e); return 1 }
 	if len(args) == 0 {
 		return fail(fmt.Errorf("expected sync or validate-pin command"))
 	}
@@ -89,13 +89,17 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 			if err != nil {
 				return fail(err)
 			}
-			fmt.Fprintln(out, `{"state":"verified"}`)
+			if _, e = fmt.Fprintln(out, `{"state":"verified"}`); e != nil {
+				return fail(e)
+			}
 		}
 	case "validate-pin":
 		if e = automation.ValidateCandidate(ctx, automation.ExecRunner{}, cwd, *baseRef); e != nil {
 			return fail(e)
 		}
-		fmt.Fprintln(out, `{"state":"validated"}`)
+		if _, e = fmt.Fprintln(out, `{"state":"validated"}`); e != nil {
+			return fail(e)
+		}
 	default:
 		return fail(fmt.Errorf("unknown command %q", args[0]))
 	}

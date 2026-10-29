@@ -9,8 +9,8 @@ import (
 func TestSyncRejectsSourcePinSymlink(t *testing.T) {
 	f := newSyncFixture(t)
 	outside := filepath.Join(f.root, "outside")
-	os.WriteFile(outside, []byte("unchanged"), 0644)
-	os.Mkdir(filepath.Join(f.up, ".github"), 0755)
+	fixtureWrite(t, outside, []byte("unchanged"))
+	fixtureDirectory(t, filepath.Join(f.up, ".github"))
 	if e := os.Symlink(outside, filepath.Join(f.up, PinPath)); e != nil {
 		t.Fatal(e)
 	}
@@ -48,7 +48,7 @@ func TestSyncRejectsModifiedCandidate(t *testing.T) {
 	c := filepath.Join(f.root, "edit")
 	testGit(t, f.root, "clone", f.fork, c)
 	testGit(t, c, "checkout", "sync/upstream-v1.18.0")
-	os.WriteFile(filepath.Join(c, "unexpected"), []byte("extra change"), 0644)
+	fixtureWrite(t, filepath.Join(c, "unexpected"), []byte("extra change"))
 	testGit(t, c, "add", ".")
 	testGit(t, c, "commit", "-m", "unexpected candidate modification")
 	testGit(t, c, "push", "origin", "HEAD")

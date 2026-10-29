@@ -335,7 +335,7 @@ func VerifyRelease(ctx context.Context, r Runner, dir string, o ReleaseOptions, 
 	if e != nil {
 		return e
 	}
-	defer os.RemoveAll(temp)
+	defer func() { _ = os.RemoveAll(temp) }()
 	b, _ := json.MarshalIndent(m, "", "  ")
 	path := filepath.Join(temp, ManifestName)
 	if e = os.WriteFile(path, append(b, '\n'), 0600); e != nil {

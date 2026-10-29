@@ -3,9 +3,28 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 )
+
+type failedWriter struct{}
+
+func (failedWriter) Write([]byte) (int, error) { return 0, fmt.Errorf("fixture write failed") }
+func TestCLIPropagatesOutputFailure(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	for _, args := range [][]string{{"init", "-b", "main"}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "base"}, {"update-ref", "refs/remotes/origin/main", "HEAD"}} {
+		if b, e := exec.Command("git", args...).CombinedOutput(); e != nil {
+			t.Fatalf("%s %v", b, e)
+		}
+	}
+	var errOut bytes.Buffer
+	if code := run(context.Background(), []string{"validate-pin"}, failedWriter{}, &errOut); code == 0 {
+		t.Fatal("ignored output failure")
+	}
+}
 
 func TestReleaseCLIRequiresMain(t *testing.T) {
 	t.Setenv("GITHUB_REF", "refs/heads/feature")

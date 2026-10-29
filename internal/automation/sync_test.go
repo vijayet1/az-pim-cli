@@ -12,6 +12,19 @@ import (
 	"testing"
 )
 
+func fixtureWrite(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+func fixtureDirectory(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	c := exec.Command("git", args...)
@@ -41,16 +54,16 @@ func newSyncFixture(t *testing.T) *syncFixture {
 		t.Fatal(e)
 	}
 	testGit(t, f.up, "init", "-b", "main")
-	os.WriteFile(filepath.Join(f.up, "file"), []byte("base\n"), 0644)
+	fixtureWrite(t, filepath.Join(f.up, "file"), []byte("base\n"))
 	testGit(t, f.up, "add", ".")
 	testGit(t, f.up, "commit", "-m", "base")
 	testGit(t, root, "clone", "--bare", f.up, f.fork)
-	os.WriteFile(filepath.Join(f.up, "file"), []byte("release\n"), 0644)
+	fixtureWrite(t, filepath.Join(f.up, "file"), []byte("release\n"))
 	testGit(t, f.up, "add", ".")
 	testGit(t, f.up, "commit", "-m", "released change")
 	f.sha = testGit(t, f.up, "rev-parse", "HEAD")
 	testGit(t, f.up, "tag", "-a", "v1.18.0", "-m", "upstream release")
-	os.WriteFile(filepath.Join(f.up, "unreleased"), []byte("must not sync\n"), 0644)
+	fixtureWrite(t, filepath.Join(f.up, "unreleased"), []byte("must not sync\n"))
 	testGit(t, f.up, "add", ".")
 	testGit(t, f.up, "commit", "-m", "unreleased")
 	testGit(t, root, "--git-dir", f.fork, "tag", "v99.0.0-fork.1", "main")
@@ -182,7 +195,7 @@ func TestRunSync(t *testing.T) {
 		f := newSyncFixture(t)
 		c := filepath.Join(f.root, "custom")
 		testGit(t, f.root, "clone", f.fork, c)
-		os.WriteFile(filepath.Join(c, "file"), []byte("fork conflict\n"), 0644)
+		fixtureWrite(t, filepath.Join(c, "file"), []byte("fork conflict\n"))
 		testGit(t, c, "add", ".")
 		testGit(t, c, "commit", "-m", "customization")
 		testGit(t, c, "push", "origin", "main")

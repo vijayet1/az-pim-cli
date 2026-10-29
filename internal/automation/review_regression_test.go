@@ -47,7 +47,7 @@ func TestCandidateRejectsRetargetedBasePin(t *testing.T) {
 	testGit(t, c, "merge", "--no-ff", "FETCH_HEAD", "-m", "merge newer release")
 	pin := UpstreamPin{1, Upstream, "v1.19.0", newSHA, releaseURL("v1.19.0")}
 	b, _ := json.Marshal(pin)
-	os.WriteFile(filepath.Join(c, PinPath), b, 0644)
+	fixtureWrite(t, filepath.Join(c, PinPath), b)
 	testGit(t, c, "add", ".")
 	testGit(t, c, "commit", "-m", "record newer source")
 	testGit(t, f.up, "tag", "-f", "v1.18.0", newSHA)

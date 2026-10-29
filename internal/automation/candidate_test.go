@@ -3,7 +3,6 @@ package automation
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -25,9 +24,9 @@ func TestValidateCandidate(t *testing.T) {
 					pin.Tag = "v1.19.0"
 					pin.ReleaseURL = releaseURL(pin.Tag)
 				}
-				os.MkdirAll(filepath.Join(c, ".github"), 0755)
+				fixtureDirectory(t, filepath.Join(c, ".github"))
 				b, _ := json.Marshal(pin)
-				os.WriteFile(filepath.Join(c, PinPath), b, 0644)
+				fixtureWrite(t, filepath.Join(c, PinPath), b)
 				testGit(t, c, "add", ".")
 				testGit(t, c, "commit", "-m", "record pin")
 				if scenario == "missing pin" || scenario == "downgrade" {
@@ -41,7 +40,7 @@ func TestValidateCandidate(t *testing.T) {
 					pin.Tag = "v1.18.0"
 					pin.ReleaseURL = releaseURL(pin.Tag)
 					b, _ := json.Marshal(pin)
-					os.WriteFile(filepath.Join(c, PinPath), b, 0644)
+					fixtureWrite(t, filepath.Join(c, PinPath), b)
 					testGit(t, c, "add", ".")
 					testGit(t, c, "commit", "-m", "downgrade pin")
 				}

@@ -67,12 +67,12 @@ func TestBuildReleaseManifest(t *testing.T) {
 	var entries []map[string]string
 	for _, name := range ExpectedAssetNames("v1.17.0") {
 		p := filepath.Join(dir, name)
-		os.WriteFile(p, []byte("fixture"), 0644)
+		fixtureWrite(t, p, []byte("fixture"))
 		entries = append(entries, map[string]string{"name": name, "path": p, "type": "Archive"})
 	}
 	b, _ := json.Marshal(entries)
 	artifacts := filepath.Join(dir, "artifacts.json")
-	os.WriteFile(artifacts, b, 0644)
+	fixtureWrite(t, artifacts, b)
 	m, e := BuildReleaseManifest(artifacts, "v1.17.0", testSHA, fixturePin())
 	if e != nil {
 		t.Fatal(e)
@@ -82,7 +82,7 @@ func TestBuildReleaseManifest(t *testing.T) {
 	}
 	entries[0]["path"] = "/etc/passwd"
 	b, _ = json.Marshal(entries)
-	os.WriteFile(artifacts, b, 0644)
+	fixtureWrite(t, artifacts, b)
 	if _, e = BuildReleaseManifest(artifacts, "v1.17.0", testSHA, fixturePin()); e == nil {
 		t.Fatal("accepted external artifact")
 	}
@@ -92,11 +92,8 @@ type publishFixture struct {
 	*syncFixture
 	selected, checkout, tag string
 	existing                bool
-	tagSHA                  string
 	published               bool
-	manifestMissing         bool
 	assetBytes              map[string][]byte
-	latest                  string
 	apiStatus               int
 }
 
@@ -175,7 +172,7 @@ func TestReleaseCheck(t *testing.T) {
 			case "same tag retry":
 				testGit(t, f.root, "--git-dir", f.fork, "tag", f.tag, f.selected)
 			case "fork-only patch":
-				os.WriteFile(filepath.Join(f.checkout, "fork-fix"), []byte("patch"), 0644)
+				fixtureWrite(t, filepath.Join(f.checkout, "fork-fix"), []byte("patch"))
 				testGit(t, f.checkout, "add", ".")
 				testGit(t, f.checkout, "commit", "-m", "fix: fork-only patch")
 				testGit(t, f.checkout, "push", "origin", "main")
@@ -186,7 +183,7 @@ func TestReleaseCheck(t *testing.T) {
 			case "API error":
 				f.apiStatus = 403
 			case "unreachable commit":
-				os.WriteFile(filepath.Join(f.checkout, "unreviewed"), []byte("no"), 0644)
+				fixtureWrite(t, filepath.Join(f.checkout, "unreviewed"), []byte("no"))
 				testGit(t, f.checkout, "add", ".")
 				testGit(t, f.checkout, "commit", "-m", "unreviewed")
 				opts.Commit = testGit(t, f.checkout, "rev-parse", "HEAD")
@@ -305,12 +302,12 @@ func TestVerifyReleaseDraft(t *testing.T) {
 	entries := []map[string]string{}
 	for _, name := range f.assetNames() {
 		p := filepath.Join(dist, name)
-		os.WriteFile(p, f.assetBytes[name], 0644)
+		fixtureWrite(t, p, f.assetBytes[name])
 		entries = append(entries, map[string]string{"name": name, "path": p, "type": "Archive"})
 	}
 	b, _ := json.Marshal(entries)
 	artifacts := filepath.Join(dist, "artifacts.json")
-	os.WriteFile(artifacts, b, 0644)
+	fixtureWrite(t, artifacts, b)
 	opts := ReleaseOptions{Repository: Fork, Tag: f.tag, Commit: f.selected, Ref: "refs/heads/main"}
 	if e := VerifyRelease(context.Background(), f, f.checkout, opts, artifacts); e != nil {
 		t.Fatal(e)

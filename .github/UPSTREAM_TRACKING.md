@@ -121,12 +121,16 @@ The tag-triggered publisher and release-please caller have been removed to keep 
 
 ## Local verification
 
-Use Go from go.mod, Git, gh, actionlint 1.7.12, and GoReleaser OSS 2.19.0. New/changed Actions are pinned to resolved commit SHAs with version comments.
+Use Go from go.mod, Git, gh, golangci-lint 2.11.4 (the pre-commit pin), actionlint 1.7.12, and GoReleaser OSS 2.19.0. New/changed Actions are pinned to resolved commit SHAs with version comments.
+
+The linter must be built with a Go version at least as new as the toolchain being analyzed. The downloaded golangci-lint 2.11.4 binary was built with Go 1.26 and cannot analyze Go 1.27 standard-library files. For the current Go 1.25 module, select that toolchain when running the downloaded linter; after upgrading the module/toolchain, rebuild the pinned linter with the newer Go version. The pre-commit Go hook builds its own tool environment.
 
 ```bash
 go test ./internal/automation ./tools/fork-automation -count=1
 go test ./...
 go vet ./internal/automation ./tools/fork-automation
+golangci-lint run
+SKIP=golangci-lint,golangci-lint-full pre-commit run --all-files
 actionlint .github/workflows/sync-upstream.yaml .github/workflows/automation-checks.yaml .github/workflows/on-push-main.yaml .github/workflows/on-tag.yaml
 goreleaser check --config .goreleaser.fork.yaml
 git diff --check
