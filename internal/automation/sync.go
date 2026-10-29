@@ -78,12 +78,16 @@ func (c commands) fetchRelease(tag string) (string, error) {
 	return sha, nil
 }
 func (c commands) pinAt(ref string) (*UpstreamPin, error) {
-	names, e := c.git("ls-tree", "-r", "--name-only", ref, "--", PinPath)
+	names, e := c.git("ls-tree", ref, "--", PinPath)
 	if e != nil {
 		return nil, e
 	}
 	if names == "" {
 		return nil, nil
+	}
+	entry := strings.Fields(names)
+	if len(entry) != 4 || (entry[0] != "100644" && entry[0] != "100755") || entry[1] != "blob" || entry[3] != PinPath {
+		return nil, fmt.Errorf("source pin must be a regular JSON blob")
 	}
 	b, e := c.git("show", ref+":"+PinPath)
 	if e != nil {

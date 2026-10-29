@@ -81,7 +81,13 @@ func (c commands) checkVersion(tag string, tags map[string]string) error {
 	}
 	check := func(existing string) error {
 		v, e := ParseForkVersion(existing)
-		if e != nil || existing == tag {
+		if e != nil {
+			if versionPattern.MatchString(existing) {
+				return fmt.Errorf("cannot order existing stable version %s: %w", existing, e)
+			}
+			return nil
+		}
+		if existing == tag {
 			return nil
 		}
 		if CompareVersions(selected, v) <= 0 {

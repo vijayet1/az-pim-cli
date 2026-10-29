@@ -19,6 +19,11 @@ func ValidateCandidate(ctx context.Context, r Runner, dir, base string) error {
 	if e != nil {
 		return e
 	}
+	if old != nil {
+		if e = c.verifyPin(*old, base); e != nil {
+			return e
+		}
+	}
 	if p == nil {
 		if old != nil {
 			return fmt.Errorf("candidate removes upstream source pin")
