@@ -29,6 +29,9 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 	up := fs.String("upstream", automation.Upstream, "upstream repository")
 	base := fs.String("base", "main", "base branch")
 	baseRef := fs.String("base-ref", "refs/remotes/origin/main", "freshly fetched validation base")
+	tag := fs.String("tag", "", "independent stable fork tag")
+	commit := fs.String("commit", "", "exact reviewed fork commit")
+	artifacts := fs.String("artifacts", "dist/artifacts.json", "GoReleaser artifact metadata")
 	if e := fs.Parse(args[1:]); e != nil {
 		return 1
 	}
@@ -56,6 +59,37 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 		}
 		if e = json.NewEncoder(out).Encode(result); e != nil {
 			return fail(e)
+		}
+	case "release-check", "release-tag", "release-verify":
+		if os.Getenv("GITHUB_REF") != "refs/heads/main" || os.Getenv("GITHUB_REPOSITORY") != automation.Fork {
+			return fail(fmt.Errorf("release must run on fork main"))
+		}
+		if os.Getenv("GH_TOKEN") == "" {
+			return fail(fmt.Errorf("GH_TOKEN is required for release operations"))
+		}
+		o := automation.ReleaseOptions{Repository: *repo, Tag: *tag, Commit: *commit, Ref: os.Getenv("GITHUB_REF")}
+		if args[0] == "release-check" {
+			result, err := automation.CheckRelease(ctx, automation.ExecRunner{}, cwd, o)
+			if err != nil {
+				return fail(err)
+			}
+			if err = json.NewEncoder(out).Encode(result); err != nil {
+				return fail(err)
+			}
+		} else {
+			if err := automation.CheckReleaseEnvironment(ctx, automation.ExecRunner{}, cwd); err != nil {
+				return fail(err)
+			}
+			var err error
+			if args[0] == "release-tag" {
+				err = automation.EnsureReleaseTag(ctx, automation.ExecRunner{}, cwd, o)
+			} else {
+				err = automation.VerifyRelease(ctx, automation.ExecRunner{}, cwd, o, *artifacts)
+			}
+			if err != nil {
+				return fail(err)
+			}
+			fmt.Fprintln(out, `{"state":"verified"}`)
 		}
 	case "validate-pin":
 		if e = automation.ValidateCandidate(ctx, automation.ExecRunner{}, cwd, *baseRef); e != nil {

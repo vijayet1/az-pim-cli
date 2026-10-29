@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+project_name: az-pim-cli
+
+builds:
+  - id: default
+    binary: az-pim-cli
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .CommitDate }}
+      - -X main.tag={{ .Tag }}
+    flags: [-trimpath, -mod=readonly]
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    env: [CGO_ENABLED=0]
+    goos: [linux, windows, darwin]
+    goarch: [amd64, arm64]
+
+universal_binaries:
+  - id: macos-universal
+    replace: false
+    ids: [default]
+    name_template: '{{ .ProjectName }}-{{ .Version }}-macos-universal'
+
+archives:
+  - id: compressed
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    wrap_in_directory: true
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-
+      {{- if eq .Os "darwin" -}}macos{{- else -}}{{ .Os }}{{- end -}}-
+      {{- if eq .Arch "amd64" -}}x86_64{{- else -}}{{ .Arch }}{{- end -}}
+    files: [LICENSE, README.md, CHANGELOG.md]
+    ids: [default, macos-universal]
+  - id: binaries
+    formats: [binary]
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-
+      {{- if eq .Os "darwin" -}}macos{{- else -}}{{ .Os }}{{- end -}}-
+      {{- if eq .Arch "amd64" -}}x86_64{{- else -}}{{ .Arch }}{{- end -}}
+    ids: [default, macos-universal]
+
+checksum:
+  name_template: '{{ .ProjectName }}-{{ .Version }}-checksums.txt'
+  algorithm: sha256
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude: ['^test:', '^ci:', '^Merge ']
+
+release:
+  github:
+    owner: vijayet1
+    name: az-pim-cli
+  draft: true
+  prerelease: false
+  replace_existing_draft: true
+  name_template: '{{ .Tag }}'
+
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Version }}-source'

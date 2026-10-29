@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,7 +66,21 @@ func (f *syncFixture) Run(ctx context.Context, dir string, env []string, name st
 		case strings.Contains(joined, "/releases/latest"):
 			return []byte(`{"tag_name":"v1.18.0","html_url":"https://github.com/netr0m/az-pim-cli/releases/tag/v1.18.0","draft":false,"prerelease":false}`), nil
 		case len(args) > 0 && args[0] == "api" && strings.Contains(joined, "/pulls?"):
-			return json.Marshal(f.prs)
+			var selected []map[string]any
+			for _, arg := range args {
+				if strings.Contains(arg, "/pulls?") {
+					query, _ := url.Parse(arg)
+					head := query.Query().Get("head")
+					state := query.Query().Get("state")
+					for _, pr := range f.prs {
+						h := pr["head"].(map[string]any)
+						if (head == "" || head == "vijayet1:"+h["ref"].(string)) && (state == "all" || state == pr["state"]) {
+							selected = append(selected, pr)
+						}
+					}
+				}
+			}
+			return json.Marshal(selected)
 		case len(args) > 1 && args[0] == "pr" && args[1] == "create":
 			if f.failCreate {
 				return nil, fmt.Errorf("PR creation unavailable")
@@ -117,6 +132,7 @@ func TestRunSync(t *testing.T) {
 			t.Fatalf("%+v", got)
 		}
 		branch := "refs/heads/sync/upstream-v1.18.0"
+		testGit(t, f.root, "--git-dir", f.fork, "merge-base", "--is-ancestor", f.sha, branch)
 		sha := testGit(t, f.root, "--git-dir", f.fork, "rev-parse", branch)
 		tree := testGit(t, f.root, "--git-dir", f.fork, "ls-tree", "-r", "--name-only", branch)
 		if strings.Contains(tree, "unreleased") {

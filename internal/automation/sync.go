@@ -7,8 +7,18 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
+
+func validPRURL(value string) bool {
+	prefix := "https://github.com/" + Fork + "/pull/"
+	if !strings.HasPrefix(value, prefix) {
+		return false
+	}
+	n, e := strconv.ParseUint(strings.TrimPrefix(value, prefix), 10, 64)
+	return e == nil && n > 0
+}
 
 type SyncOptions struct{ Repository, Upstream, Base, WorkDir string }
 type SyncResult struct {
@@ -134,15 +144,22 @@ func (c commands) prs(branch, state string) ([]pullRequest, error) {
 	if branch != "" {
 		path += "&head=" + url.QueryEscape("vijayet1:"+branch)
 	}
-	b, e := c.api(path)
-	if e != nil {
-		return nil, e
+	var all []pullRequest
+	for page := 1; page <= 1000; page++ {
+		b, e := c.api(path + "&per_page=100&page=" + strconv.Itoa(page))
+		if e != nil {
+			return nil, e
+		}
+		var prs []pullRequest
+		if e = json.Unmarshal(b, &prs); e != nil {
+			return nil, e
+		}
+		all = append(all, prs...)
+		if len(prs) < 100 {
+			return all, nil
+		}
 	}
-	var prs []pullRequest
-	if e = json.Unmarshal(b, &prs); e != nil {
-		return nil, e
-	}
-	return prs, nil
+	return nil, fmt.Errorf("pull request pagination limit exceeded")
 }
 func (c commands) prepare(base string, p UpstreamPin) (string, error) {
 	if _, e := c.git("checkout", "--detach", base); e != nil {
@@ -158,8 +175,23 @@ func (c commands) prepare(base string, p UpstreamPin) (string, error) {
 		}
 	}
 	b, _ := json.MarshalIndent(p, "", "  ")
-	if e = os.MkdirAll(filepath.Join(c.dir, ".github"), 0755); e != nil {
+	directory := filepath.Join(c.dir, ".github")
+	if info, err := os.Lstat(directory); err == nil {
+		if !info.IsDir() {
+			return "", fmt.Errorf(".github must be a real directory")
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	if e = os.MkdirAll(directory, 0755); e != nil {
 		return "", e
+	}
+	if info, err := os.Lstat(filepath.Join(c.dir, PinPath)); err == nil {
+		if !info.Mode().IsRegular() {
+			return "", fmt.Errorf("source pin must be a regular file")
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
 	}
 	if e = os.WriteFile(filepath.Join(c.dir, PinPath), append(b, '\n'), 0644); e != nil {
 		return "", e
@@ -214,6 +246,18 @@ func RunSync(ctx context.Context, r Runner, o SyncOptions) (SyncResult, error) {
 	if old != nil && *old == pin {
 		return result, nil
 	}
+	open, e := c.prs("", "open")
+	if e != nil {
+		return result, e
+	}
+	for _, pr := range open {
+		if pr.Head.Repo.FullName == Fork && strings.HasPrefix(pr.Head.Ref, "sync/upstream-") && pr.Head.Ref != branch {
+			if !validPRURL(pr.URL) {
+				return result, fmt.Errorf("invalid older proposal URL")
+			}
+			result.OlderPRs = append(result.OlderPRs, pr.URL)
+		}
+	}
 	prs, e := c.prs(branch, "all")
 	if e != nil {
 		return result, e
@@ -261,6 +305,9 @@ func RunSync(ctx context.Context, r Runner, o SyncOptions) (SyncResult, error) {
 			return result, fmt.Errorf("candidate has unexpected content; refusing to rewrite it")
 		}
 		if len(prs) == 1 {
+			if !validPRURL(prs[0].URL) {
+				return result, fmt.Errorf("unexpected pull request URL")
+			}
 			result.State = "reused"
 			result.PRURL = prs[0].URL
 			return result, nil
@@ -270,9 +317,6 @@ func RunSync(ctx context.Context, r Runner, o SyncOptions) (SyncResult, error) {
 			return result, fmt.Errorf("open PR has no candidate branch")
 		}
 		if _, e = c.prepare(baseSHA, pin); e != nil {
-			return result, e
-		}
-		if _, e = c.git("checkout", "-b", branch); e != nil {
 			return result, e
 		}
 		if _, e = c.git("commit", "-m", "chore(sync): merge upstream "+pin.Tag); e != nil {
@@ -287,11 +331,18 @@ func RunSync(ctx context.Context, r Runner, o SyncOptions) (SyncResult, error) {
 		}
 	}
 	body := fmt.Sprintf("Track stable upstream release %s\n\nUpstream commit: `%s`\n\nPreserves fork history. Review workflow changes and run all checks before merging. No fork release is published by this PR.", pin.ReleaseURL, pin.Commit)
+	if len(result.OlderPRs) > 0 {
+		body += "\n\nOlder open proposals (review separately; not automatically closed):\n" + strings.Join(result.OlderPRs, "\n")
+	}
 	opened, e := c.gh("pr", "create", "--repo", Fork, "--base", "main", "--head", branch, "--title", "chore(sync): merge upstream "+pin.Tag, "--body", body)
 	if e != nil {
 		again, lookupErr := c.prs(branch, "open")
 		if lookupErr != nil || len(again) != 1 {
 			return result, e
+		}
+		remote, readErr := c.git("ls-remote", "--heads", "origin", "refs/heads/"+branch)
+		if readErr != nil || len(strings.Fields(remote)) != 2 || again[0].Head.SHA != strings.Fields(remote)[0] || again[0].Head.Ref != branch || again[0].Head.Repo.FullName != Fork || again[0].Base.Ref != "main" {
+			return result, fmt.Errorf("concurrent PR does not match candidate")
 		}
 		result.State = "reused"
 		result.PRURL = again[0].URL
@@ -299,7 +350,7 @@ func RunSync(ctx context.Context, r Runner, o SyncOptions) (SyncResult, error) {
 		result.State = "created"
 		result.PRURL = strings.TrimSpace(string(opened))
 	}
-	if !strings.HasPrefix(result.PRURL, "https://github.com/"+Fork+"/pull/") {
+	if !validPRURL(result.PRURL) {
 		return result, fmt.Errorf("unexpected pull request URL")
 	}
 	return result, nil
