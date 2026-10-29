@@ -12,10 +12,11 @@ import (
 
 type ReleaseOptions struct{ Repository, Tag, Commit, Ref string }
 type ReleaseResult struct {
-	State  string      `json:"state"`
-	Tag    string      `json:"tag"`
-	Commit string      `json:"commit"`
-	Pin    UpstreamPin `json:"pin"`
+	State    string           `json:"state"`
+	Tag      string           `json:"tag"`
+	Commit   string           `json:"commit"`
+	Pin      UpstreamPin      `json:"pin"`
+	Manifest *ReleaseManifest `json:"-"`
 }
 type releaseAsset struct {
 	Name string `json:"name"`
@@ -233,7 +234,7 @@ func (c commands) verifyRemote(rel *githubRelease, m ReleaseManifest, requireMan
 	}
 	return nil
 }
-func (c commands) verifyPublished(rel *githubRelease, o ReleaseOptions, pin UpstreamPin) error {
+func (c commands) verifiedPublishedManifest(rel *githubRelease, o ReleaseOptions, pin UpstreamPin) (ReleaseManifest, error) {
 	var asset *releaseAsset
 	for i := range rel.Assets {
 		if rel.Assets[i].Name == ManifestName {
@@ -241,21 +242,21 @@ func (c commands) verifyPublished(rel *githubRelease, o ReleaseOptions, pin Upst
 			break
 		}
 	}
+	var m ReleaseManifest
 	if asset == nil {
-		return fmt.Errorf("published release has no verification manifest; operator inspection required")
+		return m, fmt.Errorf("published release has no verification manifest; operator inspection required")
 	}
 	b, e := c.downloadAsset(*asset)
 	if e != nil {
-		return e
+		return m, e
 	}
-	var m ReleaseManifest
 	if e = json.Unmarshal(b, &m); e != nil {
-		return e
+		return m, e
 	}
 	if e = ValidateManifest(m, o.Tag, o.Commit, pin); e != nil {
-		return e
+		return m, e
 	}
-	return c.verifyRemote(rel, m, true)
+	return m, c.verifyRemote(rel, m, true)
 }
 func CheckRelease(ctx context.Context, r Runner, dir string, o ReleaseOptions) (ReleaseResult, error) {
 	result := ReleaseResult{Tag: o.Tag, Commit: o.Commit}
@@ -299,9 +300,11 @@ func CheckRelease(ctx context.Context, r Runner, dir string, o ReleaseOptions) (
 	}
 	published := rel != nil && !*rel.Draft
 	if published {
-		if e = c.verifyPublished(rel, o, *pin); e != nil {
-			return result, e
+		manifest, err := c.verifiedPublishedManifest(rel, o, *pin)
+		if err != nil {
+			return result, err
 		}
+		result.Manifest = &manifest
 	} else {
 		if e = c.checkVersion(o.Tag, tags); e != nil {
 			return result, e

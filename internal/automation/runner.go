@@ -40,7 +40,13 @@ func (ExecRunner) Run(ctx context.Context, dir string, env []string, name string
 		return nil, fmt.Errorf("unsupported executable: only git and gh are allowed")
 	}
 	c.Dir = dir
-	c.Env = append(os.Environ(), env...)
+	// Keep the tap credential in the controller only. Target API calls pass
+	// it explicitly as GH_TOKEN; source Git/gh processes must not inherit it.
+	for _, entry := range append(os.Environ(), env...) {
+		if !strings.HasPrefix(entry, "HOMEBREW_TAP_TOKEN=") {
+			c.Env = append(c.Env, entry)
+		}
+	}
 	var stderr bytes.Buffer
 	c.Stderr = &stderr
 	out, err := c.Output()

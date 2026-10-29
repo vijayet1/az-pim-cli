@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/netr0m/az-pim-cli/internal/automation"
@@ -21,7 +22,7 @@ func main() {
 func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fail := func(e error) int { _, _ = fmt.Fprintln(errOut, e); return 1 }
 	if len(args) == 0 {
-		return fail(fmt.Errorf("expected sync or validate-pin command"))
+		return fail(fmt.Errorf("expected sync, validate-pin, release-*, or homebrew-* command"))
 	}
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(errOut)
@@ -60,12 +61,24 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 		if e = json.NewEncoder(out).Encode(result); e != nil {
 			return fail(e)
 		}
-	case "release-check", "release-tag", "release-verify":
+	case "homebrew-plan":
+		o := automation.ReleaseOptions{Repository: *repo, Tag: *tag, Commit: *commit, Ref: "refs/heads/main"}
+		plan, err := automation.PlanHomebrew(ctx, automation.ExecRunner{}, cwd, o)
+		if err != nil {
+			return fail(err)
+		}
+		if err = json.NewEncoder(out).Encode(plan); err != nil {
+			return fail(err)
+		}
+	case "release-check", "release-tag", "release-verify", "homebrew-update":
 		if os.Getenv("GITHUB_REF") != "refs/heads/main" || os.Getenv("GITHUB_REPOSITORY") != automation.Fork {
 			return fail(fmt.Errorf("release must run on fork main"))
 		}
 		if os.Getenv("GH_TOKEN") == "" {
 			return fail(fmt.Errorf("GH_TOKEN is required for release operations"))
+		}
+		if args[0] == "homebrew-update" && strings.TrimSpace(os.Getenv("HOMEBREW_TAP_TOKEN")) == "" {
+			return fail(fmt.Errorf("environment secret HOMEBREW_TAP_TOKEN is required"))
 		}
 		o := automation.ReleaseOptions{Repository: *repo, Tag: *tag, Commit: *commit, Ref: os.Getenv("GITHUB_REF")}
 		if args[0] == "release-check" {
@@ -79,6 +92,16 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 		} else {
 			if err := automation.CheckReleaseEnvironment(ctx, automation.ExecRunner{}, cwd); err != nil {
 				return fail(err)
+			}
+			if args[0] == "homebrew-update" {
+				result, err := automation.UpdateHomebrewTap(ctx, automation.ExecRunner{}, cwd, o)
+				if err != nil {
+					return fail(err)
+				}
+				if err = json.NewEncoder(out).Encode(result); err != nil {
+					return fail(err)
+				}
+				return 0
 			}
 			var err error
 			if args[0] == "release-tag" {

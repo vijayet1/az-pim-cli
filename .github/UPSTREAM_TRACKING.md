@@ -105,6 +105,7 @@ Publishing stages:
 5. Verify the complete output set, downloaded asset hashes, and checksum contents.
 6. Upload a source-and-assets manifest for future verification.
 7. Recheck version ordering, publish as stable, and verify the latest pointer and published assets.
+8. If Homebrew distribution is enabled, update only the tap formula metadata using the verified published manifest.
 
 Expected downloadable outputs: six platform binaries and their archives, a universal macOS binary and archive, source archive, checksum file, and the verification manifest. The release notes identify the upstream tag/SHA and independent fork tag/SHA.
 
@@ -117,9 +118,34 @@ The tag-triggered publisher and release-please caller have been removed to keep 
 - Deleted/retargeted upstream tag or invalid source pin: inspect the upstream change; no automatic rewrite is permitted.
 - Main moved during proposal preparation: rerun from fresh main. No force-push recovery is used.
 - Tag/build/upload failure: rerun the manual workflow with the identical tag and SHA. A tag at another SHA is rejected. An existing draft can be replaced only after source/version checks; a newer already-published version can make an older draft ineligible to publish latest.
-- Identical complete published release: verify and report a no-op without editing assets or the latest pointer.
+- Identical complete published release: verify and report a release no-op without editing assets or the latest pointer. If Homebrew is enabled, the protected job still runs to repair or confirm the tap formula.
 - Published release missing its manifest, targets, or valid checksums: stop for operator investigation. Historical releases are not automatically repaired. Prefer a new reviewed fork version rather than moving an existing tag.
 - Environment API inaccessible or protection missing: publishing stops before writes. Confirm plan support, reviewer rules, admin-bypass setting, main-only branch policy, and token actions: read permission.
+
+## Homebrew distribution
+
+The optional post-publication step updates `Formula/az-pim-cli.rb` on `vijayet1/homebrew-tap` main. It changes only the stable version, two macOS archive URLs, and their SHA-256 values, preserving the existing install/test code. It refuses draft releases, incomplete published manifests, unknown formula layouts, downgrades, and changed checksums at the same version. Concurrent content changes use a bounded reread/retry with the GitHub contents API SHA; no force push or branch-rule bypass is used.
+
+### One-time credential setup
+
+1. Create an expiring fine-grained PAT restricted to **only `vijayet1/homebrew-tap`**, with repository **Contents: read and write**. No Workflows, Administration, or Pull requests permission is needed for the single-file contents update.
+2. Add it as environment secret **`HOMEBREW_TAP_TOKEN`** in this repository's protected **`fork-release`** environment, not as a repository-wide secret. For an interactive terminal upload that does not put the value in command arguments/history:
+
+   ```bash
+   gh secret set HOMEBREW_TAP_TOKEN --repo vijayet1/az-pim-cli --env fork-release
+   ```
+
+3. After the workflow change is merged and the secret is configured, enable the **repository** variable:
+
+   ```bash
+   gh variable set HOMEBREW_TAP_ENABLED --repo vijayet1/az-pim-cli --body true
+   ```
+
+The existing repository-wide `TAP_REPO_PAT` is not used or copied automatically: its scope has not been verified. This integration does not broaden the sync App installation or the source repository's GITHUB_TOKEN. The dedicated tap credential is passed only to fixed-path tap API calls, never in arguments or logs.
+
+The protected publisher checks that the optional secret is present before release writes. A permission failure during the later tap update can still leave a successfully published release with an outdated formula; do not delete or republish that release to repair Homebrew. Fix the credential/configuration and dispatch the same tag and original source SHA again. With `HOMEBREW_TAP_ENABLED=true`, the already-published path skips all tag/build/release writes but still requires environment approval before checking/updating the tap. An already-current formula is a no-op. A formula newer than the requested release is refused rather than downgraded. If tap branch protection later requires PRs, adjust the integration through review; do not grant bypass solely to make the direct update succeed.
+
+The updater does not execute formula code. Review and test formula behavior in the tap. A read-only `homebrew-plan` command can preview the verified metadata when the trusted tool is run from a checkout of the exact selected release commit; `homebrew-update` is restricted to the protected release context.
 
 ## Local verification
 
@@ -148,7 +174,19 @@ For a stable-tag rehearsal, use a separate temporary clone, create a local fixtu
 
 ## Installation
 
-Download the selected stable release assets from `https://github.com/vijayet1/az-pim-cli/releases`. Verify checksums before use. The Go module remains `github.com/netr0m/az-pim-cli`: upstream `go install ...@latest` does not install this fork's release. Automatic Homebrew/package-manager updates are not configured by these changes.
+For macOS, install the fork through its tap:
+
+```bash
+brew install vijayet1/tap/az-pim-cli
+brew update
+brew upgrade vijayet1/tap/az-pim-cli
+```
+
+If Homebrew 7 reports an untrusted formula, review `vijayet1/homebrew-tap/Formula/az-pim-cli.rb` before explicitly trusting that formula with `brew trust --formula vijayet1/tap/az-pim-cli`. The updater does not alter local Homebrew trust settings.
+
+Homebrew uses the version committed to the tap; publishing assets alone does not update an installation. The optional distribution setup above keeps that formula synchronized after verified publication.
+
+Other platforms can download the selected stable assets from `https://github.com/vijayet1/az-pim-cli/releases` and verify checksums before use. The Go module remains `github.com/netr0m/az-pim-cli`: upstream `go install ...@latest` does not install this fork's release.
 
 ## Rollback
 
