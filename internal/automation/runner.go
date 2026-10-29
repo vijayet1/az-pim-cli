@@ -30,7 +30,15 @@ func (e *CommandError) Error() string {
 var httpStatusPattern = regexp.MustCompile(`\(HTTP ([0-9]{3})\)`)
 
 func (ExecRunner) Run(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
-	c := exec.CommandContext(ctx, name, args...)
+	var c *exec.Cmd
+	switch name {
+	case "git":
+		c = exec.CommandContext(ctx, "git", args...)
+	case "gh":
+		c = exec.CommandContext(ctx, "gh", args...)
+	default:
+		return nil, fmt.Errorf("unsupported executable: only git and gh are allowed")
+	}
 	c.Dir = dir
 	c.Env = append(os.Environ(), env...)
 	var stderr bytes.Buffer

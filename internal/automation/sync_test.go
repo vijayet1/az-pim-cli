@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -251,8 +252,12 @@ func TestRunSync(t *testing.T) {
 }
 func TestExecRunnerRedactsCredentials(t *testing.T) {
 	t.Setenv("GH_TOKEN", "fixture-secret")
-	_, e := (ExecRunner{}).Run(context.Background(), t.TempDir(), nil, "sh", "-c", "echo fixture-secret >&2; exit 1")
-	if e == nil || strings.Contains(e.Error(), "fixture-secret") {
-		t.Fatalf("credential leaked: %v", e)
+	_, err := (ExecRunner{}).Run(context.Background(), t.TempDir(), nil, "git", "--fixture-secret")
+	var commandErr *CommandError
+	if !errors.As(err, &commandErr) || commandErr.ExitCode <= 0 {
+		t.Fatalf("expected a failed allowed command, got %v", err)
+	}
+	if strings.Contains(err.Error(), "fixture-secret") || !strings.Contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("credential redaction failed: %v", err)
 	}
 }
